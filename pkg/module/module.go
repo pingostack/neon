@@ -20,8 +20,8 @@ type Manager struct {
 }
 
 type IModule interface {
-	OnInitModule() (error, interface{})
-	OnInitCommand() (error, []*cobra.Command)
+	OnInitModule() (interface{}, error)
+	OnInitCommand() ([]*cobra.Command, error)
 	OnConfigModified()
 	OnPostInitCommand()
 	OnMainRun(cmd *cobra.Command, args []string)
@@ -71,7 +71,7 @@ func Register(module IModule) error {
 func Launch() error {
 	// init module
 	for _, mi := range manager.modules {
-		err, config := mi.module.OnInitModule()
+		config, err := mi.module.OnInitModule()
 		if err != nil {
 			return err
 		}
@@ -80,7 +80,7 @@ func Launch() error {
 
 	// init command
 	for _, mi := range manager.modules {
-		err, cmds := mi.module.OnInitCommand()
+		cmds, err := mi.module.OnInitCommand()
 		if err != nil {
 			return err
 		}
