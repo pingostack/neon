@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/spf13/cobra"
 )
@@ -17,6 +18,7 @@ type ModuleInfo struct {
 type Manager struct {
 	modules []*ModuleInfo
 	rootCmd *cobra.Command
+	once    sync.Once
 }
 
 type IModule interface {
@@ -42,7 +44,7 @@ func NewManager() *Manager {
 	return m
 }
 
-func Init() {
+func initDefaultModule() {
 	Register(ConfigModuleInstance())
 }
 
@@ -69,6 +71,8 @@ func Register(module IModule) error {
 }
 
 func Launch() error {
+	manager.once.Do(initDefaultModule)
+
 	// init module
 	for _, mi := range manager.modules {
 		config, err := mi.module.OnInitModule()

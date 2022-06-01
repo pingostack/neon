@@ -9,6 +9,5 @@ import (
 )
 
 func main() {
-	module.Init()
 	module.Launch()
 }
