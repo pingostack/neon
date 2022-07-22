@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/spf13/cobra"
@@ -10,9 +11,10 @@ import (
 var manager *Manager
 
 type ModuleInfo struct {
-	module IModule
-	config interface{}
-	cmds   []*cobra.Command
+	module   IModule
+	settings interface{}
+	cmds     []*cobra.Command
+	name     string
 }
 
 type Manager struct {
@@ -39,18 +41,32 @@ func NewManager() *Manager {
 		rootCmd: &cobra.Command{},
 	}
 
-	m.rootCmd.Run = run
+	m.rootCmd.Run = func(cmd *cobra.Command, args []string) {
+		for _, mi := range manager.modules {
+			mi.module.OnMainRun(cmd, args)
+		}
+	}
 
 	return m
 }
 
 func initDefaultModule() {
 	Register(ConfigModuleInstance())
+	Register(LoggerModuleInstance())
 }
 
 func Register(module IModule) error {
 	if module == nil {
 		return fmt.Errorf("module is nil")
+	}
+
+	t := reflect.TypeOf(module)
+	if t.Kind() != reflect.Ptr {
+		return fmt.Errorf("module must be pointer")
+	}
+
+	if t.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("module must be struct")
 	}
 
 	for _, mi := range manager.modules {
@@ -59,10 +75,10 @@ func Register(module IModule) error {
 		}
 	}
 
-	cobra.OnInitialize(module.OnPostInitCommand)
 	mi := &ModuleInfo{
 		module: module,
 		cmds:   make([]*cobra.Command, 0),
+		name:   t.Elem().Name(),
 	}
 
 	manager.modules = append(manager.modules, mi)
@@ -75,11 +91,11 @@ func Launch() error {
 
 	// init module
 	for _, mi := range manager.modules {
-		config, err := mi.module.OnInitModule()
+		settings, err := mi.module.OnInitModule()
 		if err != nil {
 			return err
 		}
-		mi.config = config
+		mi.settings = settings
 	}
 
 	// init command
@@ -96,6 +112,13 @@ func Launch() error {
 		mi.cmds = cmds
 	}
 
+	cobra.OnInitialize(func() {
+		fmt.Println("config module init")
+		for _, mi := range manager.modules {
+			mi.module.OnPostInitCommand()
+		}
+	})
+
 	manager.rootCmd.Execute()
 
 	return nil
@@ -105,8 +128,16 @@ func GetRootCmd() *cobra.Command {
 	return manager.rootCmd
 }
 
-func run(cmd *cobra.Command, args []string) {
+func reloadSettings() {
 	for _, mi := range manager.modules {
-		mi.module.OnMainRun(cmd, args)
+		if mi == nil || mi.settings == nil {
+			continue
+		}
+
+		func(mi *ModuleInfo) {
+			if err := ConfigModuleInstance().Viper().UnmarshalKey(mi.name, mi.settings); err != nil {
+				panic(fmt.Errorf("unmarshal config error, %s", err))
+			}
+		}(mi)
 	}
 }
