@@ -3,6 +3,7 @@ package module
 import (
 	"io"
 	"os"
+	"strings"
 
 	"github.com/pingopenstack/neon/pkg/utils"
 	"github.com/sirupsen/logrus"
@@ -11,13 +12,15 @@ import (
 
 type Fields logrus.Fields
 
-var lm *LoggerModule
+var instance *LoggerModule
 
 type LoggerSettings struct {
-	Format  string `env:"format"  flag:"format"`
-	File    string `env:"file"    flag:"file"`
-	Console bool   `env:"console" flag:"console"`
-	Level   string `env:"level"   flag:"level"`
+	Formatter    string `mapstructure:"formatter"`
+	Format       string `mapstructure:"format"`
+	File         string `mapstructure:"file"`
+	Console      bool   `mapstructure:"console"`
+	Level        string `mapstructure:"level"`
+	ReportCaller bool   `mapstructure:"reportCaller"`
 }
 
 type LoggerModule struct {
@@ -25,13 +28,13 @@ type LoggerModule struct {
 }
 
 func init() {
-	lm = &LoggerModule{
+	instance = &LoggerModule{
 		settings: &LoggerSettings{},
 	}
 }
 
 func LoggerModuleInstance() IModule {
-	return lm
+	return instance
 }
 
 func (l *LoggerModule) OnInitModule() (interface{}, error) {
@@ -51,17 +54,24 @@ func (l *LoggerModule) OnConfigModified() {
 }
 
 func (l *LoggerModule) OnPostInitCommand() {
-	logrus.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-		ForceColors:   true,
-	})
+	if strings.ToLower(l.settings.Formatter) == strings.ToLower("text") {
+		logrus.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp:   true,
+			ForceColors:     true,
+			TimestampFormat: l.settings.Format,
+		})
+	} else {
+		logrus.SetFormatter(&logrus.JSONFormatter{
+			TimestampFormat: l.settings.Format,
+		})
+	}
 
-	logrus.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-		ForceColors:   true,
-	})
-
-	//	logrus.StandardLogger().Out = os.Stdout
+	logrus.SetReportCaller(l.settings.ReportCaller)
+	level, err := logrus.ParseLevel(l.settings.Level)
+	if err != nil {
+		panic(err)
+	}
+	logrus.SetLevel(level)
 
 	fd, err := utils.CreateDirFile(l.settings.File)
 	if err != nil {

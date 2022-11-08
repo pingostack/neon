@@ -1,6 +1,50 @@
 LoggerModule: {
   file: ./logs/neon.log,
-  level: INFO,
+  level: debug,
   formatter: text, # text or json
-  timestampFormat: 2022-05-16 00:00:00 UTC
+  format: 2006-01-02 15:04:05,
+  console: true,
+  reportcaller: true,
+}
+
+WebRTCModule: {
+  ballast: 4,
+  withstats: true,
+  ice: {
+    singleport: 1936,
+    portrange: [1937, 1938],
+    icsserver: [],
+    icelite: true,
+    nat1to1: [],
+    sdpsemantics: "unified-plan",
+    mdns: true,
+    disconnectedtimeout: 10,
+    failedtimeout: 10,
+    keepaliveinterval: 10,
+  },
+  audiolevelobserver: {
+    audiolevelinterval: 0,
+    audiolevelthreshold: 0,
+    audiolevelfilter: 0,
+  },
+  track: {
+    maxbandwidth: 10000000,
+    maxpackettrack: 1000,
+  }
+}
+
+RtspModule: {
+  server: {
+    addr: "tcp://:3654",
+    tcp: {
+      Multicore: true,
+      NemEventLoop: 10,
+      TCPNoDelay: 0,
+      LockOSThread: true,
+      LogLevel: -1,
+      ReusePort: true,
+      ReuseAddr: true,
+      SocketRecvBuffer: 1024,
+    }
+  }
 }

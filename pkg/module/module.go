@@ -81,6 +81,10 @@ func Register(module IModule) error {
 		name:   t.Elem().Name(),
 	}
 
+	cobra.OnInitialize(func() {
+		module.OnPostInitCommand()
+	})
+
 	manager.modules = append(manager.modules, mi)
 
 	return nil
@@ -112,13 +116,6 @@ func Launch() error {
 		mi.cmds = cmds
 	}
 
-	cobra.OnInitialize(func() {
-		fmt.Println("config module init")
-		for _, mi := range manager.modules {
-			mi.module.OnPostInitCommand()
-		}
-	})
-
 	manager.rootCmd.Execute()
 
 	return nil
@@ -134,10 +131,8 @@ func reloadSettings() {
 			continue
 		}
 
-		func(mi *ModuleInfo) {
-			if err := ConfigModuleInstance().Viper().UnmarshalKey(mi.name, mi.settings); err != nil {
-				panic(fmt.Errorf("unmarshal config error, %s", err))
-			}
-		}(mi)
+		if err := ConfigModuleInstance().Viper().UnmarshalKey(mi.name, mi.settings); err != nil {
+			panic(fmt.Errorf("unmarshal config error, %s", err))
+		}
 	}
 }
