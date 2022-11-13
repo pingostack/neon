@@ -14,13 +14,15 @@ type RtspServerSettings struct {
 type RtspServer struct {
 	tcpServer *tcp.Server
 	settings  RtspServerSettings
-	logger    *logrus.Entry
+	*logrus.Entry
 }
 
-func NewRtspServer(settings RtspServerSettings, logger *logrus.Entry) (*RtspServer, error) {
+func NewRtspServer(settings RtspServerSettings) (*RtspServer, error) {
 	var err error
 	server := &RtspServer{
-		logger: logger,
+		Entry: logrus.WithFields(logrus.Fields{
+			"Server": "RtspServer",
+		}),
 	}
 
 	server.settings = settings
@@ -30,15 +32,15 @@ func NewRtspServer(settings RtspServerSettings, logger *logrus.Entry) (*RtspServ
 
 	server.tcpServer, err = tcp.NewServer(settings.Addr, server, gnet.WithOptions(settings.TcpSettings))
 	if err != nil {
-		Logger().Errorf("error creating tcp server: %v", err)
+		server.Errorf("error creating tcp server: %v", err)
 		return nil, err
 	}
 
 	return server, nil
 }
 
-func (server *RtspServer) NewOrGet() tcp.IContext {
-	session := NewSession(server.logger)
+func (server *RtspServer) NewOrGet(c interface{}) tcp.IContext {
+	session := NewSession(c, RtspRoleServer)
 
 	return session
 }
@@ -59,18 +61,31 @@ func (server *RtspServer) Encode(c gnet.Conn, buf []byte) ([]byte, error) {
 // to make gnet continue reading data from socket, otherwise, any error other than ErrIncompletePacket
 // will cause the connection to close.
 func (server *RtspServer) Decode(c gnet.Conn) ([]byte, error) {
-	ctx := c.Context().(tcp.IContext)
-	buf := c.Read()
-	var len int
-	var err error
-	if len, err = ctx.OnTcpRread(buf); err != nil {
-		logrus.Errorf("rtsp s onTraffic error, parse error: %s", err.Error())
+	cctx := c.Context()
+	if cctx == nil {
+		server.Errorf("connection context is nil")
 		return nil, nil
 	}
 
-	if len > 0 {
-		logrus.Debugf("rtsp s onTraffic, len: %d", len)
-		// 	c.ShiftN(len)
+	session := cctx.(*Session)
+
+	ctx := rtspContext(session)
+
+	if ctx == nil {
+		session.Errorf("error getting rtsp context")
+		return nil, nil
+	}
+
+	offset, err := session.Feed(c.Read())
+	if err != nil {
+		session.Errorf("error feeding data to session: %v", err)
+		return nil, err
+	}
+
+	if offset < c.BufferLength() {
+		c.ShiftN(offset)
+	} else {
+		c.ResetBuffer()
 	}
 
 	return nil, nil

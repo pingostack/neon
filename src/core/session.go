@@ -4,12 +4,6 @@ type Session struct {
 	context map[interface{}]interface{}
 }
 
-func NewSession() *Session {
-	return &Session{
-		context: make(map[interface{}]interface{}),
-	}
-}
-
 func (s *Session) SetContext(k interface{}, v interface{}) {
 	s.context[k] = v
 }

@@ -1,4 +1,4 @@
-package rtsp
+package protocol
 
 type Response struct {
 }

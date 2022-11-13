@@ -4,7 +4,7 @@ LoggerModule: {
   formatter: text, # text or json
   format: 2006-01-02 15:04:05,
   console: true,
-  reportcaller: true,
+  reportcaller: false,
 }
 
 WebRTCModule: {

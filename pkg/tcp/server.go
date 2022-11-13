@@ -6,18 +6,8 @@ import (
 )
 
 type IManager interface {
-	NewOrGet() IContext
+	NewOrGet(c interface{}) IContext
 	OnTcpClose(ctx IContext) error
-}
-
-type IContext interface {
-	SetConn(c gnet.Conn)
-	OnTcpClose() error
-	OnTcpRread(buf []byte) (int, error)
-}
-
-type Context struct {
-	Conn gnet.Conn
 }
 
 type Server struct {
@@ -49,7 +39,7 @@ func (s *Server) OnShutdown(gs gnet.Server) {
 // OnOpen fires when a new connection has been opened.
 // The parameter out is the return value which is going to be sent back to the peer.
 func (s *Server) OnOpened(c gnet.Conn) (out []byte, action gnet.Action) {
-	ctx := s.manager.NewOrGet()
+	ctx := s.manager.NewOrGet(c)
 	c.SetContext(ctx)
 	ctx.SetConn(c)
 
@@ -68,29 +58,6 @@ func (s *Server) OnClosed(c gnet.Conn, err error) (action gnet.Action) {
 
 // OnTraffic fires when a local socket receives data from the peer.
 func (s *Server) React(packet []byte, c gnet.Conn) (out []byte, action gnet.Action) {
-	//	ctx := c.Context().(IContext)
-
 	logrus.Debugf("Received data from %s: %s", c.RemoteAddr(), string(packet))
-	// buf := packet //c.Read()
-
-	// var len int
-	// var err error
-	// if len, err = ctx.OnTcpRread(buf); err != nil {
-	// 	logrus.Errorf("rtsp s onTraffic error, parse error: %s", err.Error())
-	// 	return nil, gnet.Close
-	// }
-
-	// if len > 0 {
-	// 	c.ShiftN(len)
-	// }
-
 	return nil, gnet.None
-}
-
-func (ctx *Context) Write(data []byte) error {
-	return ctx.Conn.AsyncWrite(data)
-}
-
-func (ctx *Context) SetConn(c gnet.Conn) {
-	ctx.Conn = c
 }

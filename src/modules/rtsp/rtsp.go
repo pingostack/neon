@@ -20,6 +20,8 @@ type RtspModule struct {
 	logger   *logrus.Entry
 }
 
+type RtspContext struct{}
+
 var instance *RtspModule
 
 func init() {
@@ -34,40 +36,50 @@ func RtspModuleInstance() module.IModule {
 	return instance
 }
 
-func (w *RtspModule) OnInitModule() (interface{}, error) {
-	return w.settings, nil
+func (rm *RtspModule) OnInitModule() (interface{}, error) {
+	return rm.settings, nil
 }
 
-func (w *RtspModule) OnInitCommand() ([]*cobra.Command, error) {
+func (rm *RtspModule) OnInitCommand() ([]*cobra.Command, error) {
 	return nil, nil
 }
 
-func (w *RtspModule) OnConfigModified() {
+func (rm *RtspModule) OnConfigModified() {
 
 }
 
-func (w *RtspModule) OnPostInitCommand() {
+func (rm *RtspModule) OnPostInitCommand() {
 }
 
-func (w *RtspModule) OnMainRun(cmd *cobra.Command, args []string) {
-	w.logger = logrus.WithFields(logrus.Fields{
+func (rm *RtspModule) OnMainRun(cmd *cobra.Command, args []string) {
+	rm.logger = logrus.WithFields(logrus.Fields{
 		"Module": "RtspModule",
 	})
 
 	var err error
-	Logger().Infof("rtsp server listening on %v", w.settings.RtspServer.Addr)
+	logger().Infof("rtsp server listening on %v", rm.settings.RtspServer.Addr)
 
 	go func() {
-		w.server, err = NewRtspServer(w.settings.RtspServer, w.logger)
+		rm.server, err = NewRtspServer(rm.settings.RtspServer)
+
 		if err != nil {
-			Logger().Errorf("New rtsp server failed: %v", err)
+			logger().Errorf("New rtsp server failed: %v", err)
 			panic(err)
 		}
 	}()
 
-	Logger().Infof("New rtsp server started")
+	logger().Infof("New rtsp server started")
 }
 
-func Logger() *logrus.Entry {
+func rtspContext(s *Session) *RtspContext {
+	ctx := s.GetContext(instance)
+	if ctx == nil {
+		return nil
+	}
+
+	return ctx.(*RtspContext)
+}
+
+func logger() *logrus.Entry {
 	return instance.logger
 }
