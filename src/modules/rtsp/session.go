@@ -2,20 +2,20 @@ package rtsp
 
 import (
 	"github.com/google/uuid"
+	"github.com/pingopenstack/neon/pkg/protocol/rtsp"
 	"github.com/pingopenstack/neon/pkg/tcp"
 	"github.com/pingopenstack/neon/src/core"
-	"github.com/pingopenstack/neon/src/modules/rtsp/protocol"
 	"github.com/sirupsen/logrus"
 )
 
 type Session struct {
 	tcp.IContext
 	core.Session
-	*protocol.Protocol
+	*rtsp.Protocol
 	*logrus.Entry
 }
 
-func NewSession(c interface{}, role protocol.RtspRole) *Session {
+func NewSession(c interface{}, role rtsp.RtspRole) *Session {
 	ctx := tcp.NewContext(c)
 	s := &Session{
 		IContext: ctx,
@@ -29,7 +29,7 @@ func NewSession(c interface{}, role protocol.RtspRole) *Session {
 	}
 
 	var err error
-	s.Protocol, err = protocol.NewProtocol(role, s)
+	s.Protocol, err = rtsp.NewProtocol(role, s)
 	if err != nil {
 		s.Errorf("error creating rtsp: %v", err)
 		return nil
@@ -46,10 +46,10 @@ func (s *Session) OnTcpClose() error {
 	return nil
 }
 
-func (s *Session) RtspCmdHandler(p *protocol.Protocol, req *protocol.Request) error {
+func (s *Session) RtspCmdHandler(p *rtsp.Protocol, req *rtsp.Request) error {
 	return nil
 }
 
-func (s *Session) RtpRtcpHandler(p *protocol.Protocol, frame *core.AVFrame) error {
+func (s *Session) RtpRtcpHandler(p *rtsp.Protocol, frame *core.AVFrame) error {
 	return nil
 }

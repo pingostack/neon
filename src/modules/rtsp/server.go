@@ -2,6 +2,7 @@ package rtsp
 
 import (
 	"github.com/panjf2000/gnet"
+	"github.com/pingopenstack/neon/pkg/protocol/rtsp"
 	"github.com/pingopenstack/neon/pkg/tcp"
 	"github.com/sirupsen/logrus"
 )
@@ -40,7 +41,7 @@ func NewRtspServer(settings RtspServerSettings) (*RtspServer, error) {
 }
 
 func (server *RtspServer) NewOrGet(c interface{}) tcp.IContext {
-	session := NewSession(c, RtspRoleServer)
+	session := NewSession(c, rtsp.RtspRoleServer)
 
 	return session
 }
