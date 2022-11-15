@@ -11,6 +11,7 @@ type IContext interface {
 	RemoteAddr() string
 	LocalAddr() string
 	Network() string
+	Write(data []byte) error
 }
 
 type Context struct {
@@ -28,10 +29,10 @@ func (ctx *Context) Write(data []byte) error {
 }
 
 func (ctx *Context) SetConn(c interface{}) {
-	if ctx.Conn != nil {
-		ctx.Conn = c.(gnet.Conn)
-	} else {
+	if c == nil {
 		ctx.Conn = nil
+	} else {
+		ctx.Conn = c.(gnet.Conn)
 	}
 }
 

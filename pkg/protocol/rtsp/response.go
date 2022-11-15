@@ -105,19 +105,19 @@ const (
 )
 
 type Response struct {
-	Version   string
-	Status    Status
-	StatusStr string
-	Lines     HeaderLines
-	Content   []byte
+	version   string
+	status    Status
+	statusStr string
+	lines     HeaderLines
+	content   []byte
 }
 
-func (res *Response) String() string {
-	return res.Version + " " + strconv.Itoa(int(res.Status)) + " " + res.StatusText() + "\r\n" + res.Lines.String() + "\r\n" + string(res.Content)
+func (resp *Response) String() string {
+	return resp.version + " " + strconv.Itoa(int(resp.status)) + " " + resp.status.String() + "\r\n" + resp.lines.String() + "\r\n" + string(resp.content)
 }
 
-func (res *Response) StatusText() string {
-	switch res.Status {
+func (status Status) String() string {
+	switch status {
 	case StatusContinue:
 		return "Continue"
 	case StatusOK:
@@ -224,7 +224,7 @@ func UnmarshalResponse(buf []byte) (*Response, int, error) {
 	contentLength := 0
 
 	resp := &Response{
-		Lines: make(HeaderLines),
+		lines: make(HeaderLines),
 	}
 
 	lines := bytes.Split(buf[:headerEndOffset], []byte("\r\n"))
@@ -239,10 +239,10 @@ func UnmarshalResponse(buf []byte) (*Response, int, error) {
 		return nil, endOffset, errors.New("invalid packet")
 	}
 
-	resp.Version = strings.ToLower(string(statusLineParts[0]))
+	resp.version = strings.ToLower(string(statusLineParts[0]))
 	status, _ := strconv.Atoi(string(statusLineParts[1]))
-	resp.Status = Status(status)
-	resp.StatusStr = string(statusLineParts[2])
+	resp.status = Status(status)
+	resp.statusStr = string(statusLineParts[2])
 
 	// parse other lines
 	for _, line := range lines {
@@ -257,7 +257,7 @@ func UnmarshalResponse(buf []byte) (*Response, int, error) {
 
 		key := strings.ToLower(string(line[:idx]))
 		value := string(line[idx+1:])
-		resp.Lines[key] = value
+		resp.lines[key] = value
 
 		if key == "content-length" {
 			var err error
@@ -268,15 +268,15 @@ func UnmarshalResponse(buf []byte) (*Response, int, error) {
 		}
 	}
 
-	resp.Content = buf[headerEndOffset+4 : headerEndOffset+4+contentLength]
+	resp.content = buf[headerEndOffset+4 : headerEndOffset+4+contentLength]
 
 	endOffset += contentLength
 
 	return resp, endOffset, nil
 }
 
-func (res *Response) CSeq() int {
-	cseqLine := res.Lines["cseq"]
+func (resp *Response) CSeq() int {
+	cseqLine := resp.lines["cseq"]
 	if cseqLine == "" {
 		return -1
 	}
@@ -289,6 +289,71 @@ func (res *Response) CSeq() int {
 	return cseq
 }
 
-func (res *Response) Session() string {
-	return res.Lines["session"]
+func (resp *Response) Session() string {
+	return resp.lines["session"]
 }
+
+func (resp *Response) Transport() (*Transport, error) {
+	transportLine := resp.lines["transport"]
+
+	return UnmarshalTransport(transportLine)
+}
+
+func (resp *OptionsResponse) ContentLength() int {
+	contentLengthLine := resp.lines["content-length"]
+
+	contentLength, err := strconv.Atoi(contentLengthLine)
+	if err != nil {
+		return -1
+	}
+
+	return contentLength
+}
+
+func (resp *Response) ContentType() string {
+	return resp.lines["content-type"]
+}
+
+func (resp *Response) Expires() string {
+	return resp.lines["expires"]
+}
+
+func (resp *Response) LastModified() string {
+	return resp.lines["last-modified"]
+}
+
+func (resp *Response) Server() string {
+	return resp.lines["server"]
+}
+
+func (resp *Response) Content() []byte {
+	return resp.content
+}
+
+func (resp *Response) SetContent(content string) {
+	resp.lines["Content-Length"] = strconv.Itoa(len(content))
+	resp.content = []byte(content)
+}
+
+func (resp *Response) Option() *OptionsResponse {
+	return &OptionsResponse{
+		Response: resp,
+	}
+}
+
+// OptionsResponse is a RTSP OPTIONS request
+type OptionsResponse struct {
+	*Response
+}
+
+func (resp *OptionsResponse) Public() []string {
+	publicLine := resp.lines["public"]
+
+	return strings.Split(publicLine, ",")
+}
+
+func (resp *OptionsResponse) SetOptions(options []string) {
+	resp.lines["Public"] = strings.Join(options, ",")
+}
+
+// DescribeResponse is a RTSP DESCRIBE request

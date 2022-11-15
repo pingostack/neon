@@ -58,6 +58,5 @@ func (s *Server) OnClosed(c gnet.Conn, err error) (action gnet.Action) {
 
 // OnTraffic fires when a local socket receives data from the peer.
 func (s *Server) React(packet []byte, c gnet.Conn) (out []byte, action gnet.Action) {
-	logrus.Debugf("Received data from %s: %s", c.RemoteAddr(), string(packet))
 	return nil, gnet.None
 }

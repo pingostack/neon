@@ -31,13 +31,30 @@ const (
 )
 
 type Transport struct {
-	Profile      RtpProfile
-	Mode         TransportMode
-	Interleaveds []int
-	Unicast      bool
-	ClientPorts  []int
-	ServerPorts  []int
-	SSRC         int64
+	profile      RtpProfile
+	mode         TransportMode
+	interleaveds []int
+	unicast      bool
+	clientPorts  []int
+	serverPorts  []int
+	ssrc         int64
+}
+
+func NewUdpTransport(profile RtpProfile, clientPorts []int) *Transport {
+	return &Transport{
+		profile:     profile,
+		mode:        TransportModeUdp,
+		unicast:     true,
+		clientPorts: clientPorts,
+	}
+}
+
+func NewTcpTransport(profile RtpProfile, interleaveds []int) *Transport {
+	return &Transport{
+		profile:      profile,
+		mode:         TransportModeTcp,
+		interleaveds: interleaveds,
+	}
 }
 
 func (r RtpProfile) ToString() string {
@@ -73,68 +90,72 @@ func (r *RtpProfile) Parse(s string) error {
 	return errors.New("invalid rtp profile")
 }
 
+func (t *Transport) SetSSRC(s int32) {
+	t.ssrc = int64(s)
+}
+
 func (t *Transport) String() (string, error) {
 	s := "Transport: "
 
-	if t.Profile == RtpProfileInvalid {
+	if t.profile == RtpProfileInvalid {
 		return "", errors.New("invalid rtp profile")
 	}
 
-	s += t.Profile.ToString()
+	s += t.profile.ToString()
 
-	if t.Mode == TransportModeTcp {
+	if t.mode == TransportModeTcp {
 		s += "TCP;"
 
 		s += "interleaved="
-		for i, v := range t.Interleaveds {
+		for i, v := range t.interleaveds {
 			s += strconv.Itoa(v)
-			if i < len(t.Interleaveds)-1 {
+			if i < len(t.interleaveds)-1 {
 				s += "-"
 			}
 		}
 	} else {
 		s += "UDP;"
-		if t.Unicast {
+		if t.unicast {
 			s += "unicast;"
 		}
 
-		if len(t.ClientPorts) > 0 {
+		if len(t.clientPorts) > 0 {
 			s += "client_port="
-			for i, v := range t.ClientPorts {
+			for i, v := range t.clientPorts {
 				s += strconv.Itoa(v)
-				if i < len(t.ClientPorts)-1 {
+				if i < len(t.clientPorts)-1 {
 					s += "-"
 				}
 			}
 		}
 
-		if len(t.ServerPorts) > 0 {
+		if len(t.serverPorts) > 0 {
 			s += "server_port="
-			for i, v := range t.ServerPorts {
+			for i, v := range t.serverPorts {
 				s += strconv.Itoa(v)
-				if i < len(t.ServerPorts)-1 {
+				if i < len(t.serverPorts)-1 {
 					s += "-"
 				}
 			}
 		}
 	}
 
-	if t.SSRC != 0 {
-		s += fmt.Sprintf(";ssrc=%x", t.SSRC)
+	if t.ssrc != 0 {
+		s += fmt.Sprintf(";ssrc=%x", t.ssrc)
 	}
 
 	return s, nil
 }
 
-func NewTransport(s string) (*Transport, error) {
+func UnmarshalTransport(s string) (*Transport, error) {
 	t := &Transport{
-		Profile:      RtpProfileInvalid,
-		Mode:         TransportModeUdp,
-		Interleaveds: make([]int, 0),
-		Unicast:      true,
-		ClientPorts:  make([]int, 0),
-		ServerPorts:  make([]int, 0),
-		SSRC:         0,
+		profile:      RtpProfileInvalid,
+		mode:         TransportModeUdp,
+		interleaveds: make([]int, 0),
+		unicast:      true,
+		clientPorts:  make([]int, 0),
+		serverPorts:  make([]int, 0),
+		ssrc:         0,
 	}
 
 	parts := strings.Split(s, ";")
@@ -148,61 +169,61 @@ func NewTransport(s string) (*Transport, error) {
 
 			switch key {
 			case "interleaved":
-				t.Interleaveds = make([]int, 2)
+				t.interleaveds = make([]int, 2)
 				iv := strings.Split(val, "-")
 				if len(iv) == 2 {
-					t.Interleaveds[0], _ = strconv.Atoi(iv[0])
-					t.Interleaveds[1], _ = strconv.Atoi(iv[0])
+					t.interleaveds[0], _ = strconv.Atoi(iv[0])
+					t.interleaveds[1], _ = strconv.Atoi(iv[0])
 
-					t.Mode = TransportModeTcp
+					t.mode = TransportModeTcp
 				}
 
 			case "client_port":
 				iv := strings.Split(val, "-")
 				if len(iv) == 2 {
-					t.ClientPorts[0], _ = strconv.Atoi(iv[0])
-					t.ClientPorts[1], _ = strconv.Atoi(iv[0])
+					t.clientPorts[0], _ = strconv.Atoi(iv[0])
+					t.clientPorts[1], _ = strconv.Atoi(iv[0])
 
-					t.Mode = TransportModeUdp
+					t.mode = TransportModeUdp
 				}
 
 			case "server_port":
 				iv := strings.Split(val, "-")
 				if len(iv) == 2 {
-					t.ClientPorts[0], _ = strconv.Atoi(iv[0])
-					t.ClientPorts[1], _ = strconv.Atoi(iv[0])
+					t.clientPorts[0], _ = strconv.Atoi(iv[0])
+					t.clientPorts[1], _ = strconv.Atoi(iv[0])
 
-					t.Mode = TransportModeUdp
+					t.mode = TransportModeUdp
 				}
 
 			case "ssrc":
-				t.SSRC, _ = strconv.ParseInt(val, 16, 32)
+				t.ssrc, _ = strconv.ParseInt(val, 16, 32)
 			}
 
 		} else {
 			key = strings.ToLower(p)
 
 			if strings.Contains(key, "rtp/") {
-				t.Profile.Parse(key)
+				t.profile.Parse(key)
 			} else if strings.Contains(key, "unicast") {
-				t.Unicast = true
+				t.unicast = true
 			}
 		}
 	}
 
-	if t.Mode == TransportModeUdp && len(t.ClientPorts) != 2 {
+	if t.mode == TransportModeUdp && len(t.clientPorts) != 2 {
 		return nil, errors.New("invalid transport ports")
 	}
 
-	if t.Mode == TransportModeTcp && len(t.Interleaveds) != 2 {
+	if t.mode == TransportModeTcp && len(t.interleaveds) != 2 {
 		return nil, errors.New("invalid transport interleaved")
 	}
 
-	if t.Profile == RtpProfileInvalid {
+	if t.profile == RtpProfileInvalid {
 		return nil, errors.New("invalid rtp profile")
 	}
 
-	if t.SSRC == 0 {
+	if t.ssrc == 0 {
 		return nil, errors.New("invalid ssrc")
 	}
 
@@ -210,33 +231,33 @@ func NewTransport(s string) (*Transport, error) {
 }
 
 func (t *Transport) RtpPort() int {
-	if len(t.ClientPorts) == 0 {
+	if len(t.clientPorts) == 0 {
 		return -1
 	}
 
-	return t.ClientPorts[0]
+	return t.clientPorts[0]
 }
 
 func (t *Transport) RtcpPort() int {
-	if len(t.ClientPorts) == 0 {
+	if len(t.clientPorts) == 0 {
 		return -1
 	}
 
-	return t.ClientPorts[1]
+	return t.clientPorts[1]
 }
 
 func (t *Transport) RtpInterleaved() int {
-	if len(t.Interleaveds) == 0 {
+	if len(t.interleaveds) == 0 {
 		return -1
 	}
 
-	return t.Interleaveds[0]
+	return t.interleaveds[0]
 }
 
 func (t *Transport) RtcpInterleaved() int {
-	if len(t.Interleaveds) == 0 {
+	if len(t.interleaveds) == 0 {
 		return -1
 	}
 
-	return t.Interleaveds[1]
+	return t.interleaveds[1]
 }

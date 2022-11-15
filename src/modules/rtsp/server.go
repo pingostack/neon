@@ -2,7 +2,6 @@ package rtsp
 
 import (
 	"github.com/panjf2000/gnet"
-	"github.com/pingopenstack/neon/pkg/protocol/rtsp"
 	"github.com/pingopenstack/neon/pkg/tcp"
 	"github.com/sirupsen/logrus"
 )
@@ -41,7 +40,7 @@ func NewRtspServer(settings RtspServerSettings) (*RtspServer, error) {
 }
 
 func (server *RtspServer) NewOrGet(c interface{}) tcp.IContext {
-	session := NewSession(c, rtsp.RtspRoleServer)
+	session := NewSession(c)
 
 	return session
 }
@@ -70,23 +69,16 @@ func (server *RtspServer) Decode(c gnet.Conn) ([]byte, error) {
 
 	session := cctx.(*Session)
 
-	ctx := rtspContext(session)
-
-	if ctx == nil {
-		session.Errorf("error getting rtsp context")
-		return nil, nil
+	offset, err := session.Feed(c.Read())
+	if offset > 0 && offset < c.BufferLength() {
+		c.ShiftN(offset)
+	} else if offset >= c.BufferLength() {
+		c.ResetBuffer()
 	}
 
-	offset, err := session.Feed(c.Read())
 	if err != nil {
 		session.Errorf("error feeding data to session: %v", err)
 		return nil, err
-	}
-
-	if offset < c.BufferLength() {
-		c.ShiftN(offset)
-	} else {
-		c.ResetBuffer()
 	}
 
 	return nil, nil

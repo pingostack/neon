@@ -15,7 +15,7 @@ type Session struct {
 	*logrus.Entry
 }
 
-func NewSession(c interface{}, role rtsp.RtspRole) *Session {
+func NewSession(c interface{}) *Session {
 	ctx := tcp.NewContext(c)
 	s := &Session{
 		IContext: ctx,
@@ -29,7 +29,14 @@ func NewSession(c interface{}, role rtsp.RtspRole) *Session {
 	}
 
 	var err error
-	s.Protocol, err = rtsp.NewProtocol(role, s)
+	settings := rtsp.ProtocolSettings{
+		Role: rtsp.RtspRoleServer,
+		Write: func(data []byte) error {
+			return s.Write(data)
+		},
+	}
+
+	s.Protocol, err = rtsp.NewProtocol(settings, s)
 	if err != nil {
 		s.Errorf("error creating rtsp: %v", err)
 		return nil
@@ -47,6 +54,22 @@ func (s *Session) OnTcpClose() error {
 }
 
 func (s *Session) RtspCmdHandler(p *rtsp.Protocol, req *rtsp.Request) error {
+	s.Infof("RtspCmdHandler: %s", req.MethodStr())
+
+	switch req.Method() {
+	case rtsp.OptionMethod:
+	case rtsp.DescribeMethod:
+	case rtsp.AnnounceMethod:
+	case rtsp.SetupMethod:
+	case rtsp.PlayMethod:
+	case rtsp.PauseMethod:
+	case rtsp.TeardownMethod:
+	case rtsp.GetParameterMethod:
+	case rtsp.SetParameterMethod:
+	case rtsp.RecordMethod:
+	default:
+	}
+
 	return nil
 }
 
