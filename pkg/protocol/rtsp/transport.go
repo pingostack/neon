@@ -2,6 +2,7 @@ package rtsp
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -34,7 +35,9 @@ type Transport struct {
 	Mode         TransportMode
 	Interleaveds []int
 	Unicast      bool
-	Ports        []int
+	ClientPorts  []int
+	ServerPorts  []int
+	SSRC         int64
 }
 
 func (r RtpProfile) ToString() string {
@@ -95,13 +98,29 @@ func (t *Transport) String() (string, error) {
 			s += "unicast;"
 		}
 
-		s += "client_port="
-		for i, v := range t.Ports {
-			s += strconv.Itoa(v)
-			if i < len(t.Ports)-1 {
-				s += "-"
+		if len(t.ClientPorts) > 0 {
+			s += "client_port="
+			for i, v := range t.ClientPorts {
+				s += strconv.Itoa(v)
+				if i < len(t.ClientPorts)-1 {
+					s += "-"
+				}
 			}
 		}
+
+		if len(t.ServerPorts) > 0 {
+			s += "server_port="
+			for i, v := range t.ServerPorts {
+				s += strconv.Itoa(v)
+				if i < len(t.ServerPorts)-1 {
+					s += "-"
+				}
+			}
+		}
+	}
+
+	if t.SSRC != 0 {
+		s += fmt.Sprintf(";ssrc=%x", t.SSRC)
 	}
 
 	return s, nil
@@ -113,7 +132,9 @@ func NewTransport(s string) (*Transport, error) {
 		Mode:         TransportModeUdp,
 		Interleaveds: make([]int, 0),
 		Unicast:      true,
-		Ports:        make([]int, 0),
+		ClientPorts:  make([]int, 0),
+		ServerPorts:  make([]int, 0),
+		SSRC:         0,
 	}
 
 	parts := strings.Split(s, ";")
@@ -139,8 +160,8 @@ func NewTransport(s string) (*Transport, error) {
 			case "client_port":
 				iv := strings.Split(val, "-")
 				if len(iv) == 2 {
-					t.Ports[0], _ = strconv.Atoi(iv[0])
-					t.Ports[1], _ = strconv.Atoi(iv[0])
+					t.ClientPorts[0], _ = strconv.Atoi(iv[0])
+					t.ClientPorts[1], _ = strconv.Atoi(iv[0])
 
 					t.Mode = TransportModeUdp
 				}
@@ -148,11 +169,14 @@ func NewTransport(s string) (*Transport, error) {
 			case "server_port":
 				iv := strings.Split(val, "-")
 				if len(iv) == 2 {
-					t.Ports[0], _ = strconv.Atoi(iv[0])
-					t.Ports[1], _ = strconv.Atoi(iv[0])
+					t.ClientPorts[0], _ = strconv.Atoi(iv[0])
+					t.ClientPorts[1], _ = strconv.Atoi(iv[0])
 
 					t.Mode = TransportModeUdp
 				}
+
+			case "ssrc":
+				t.SSRC, _ = strconv.ParseInt(val, 16, 32)
 			}
 
 		} else {
@@ -166,7 +190,7 @@ func NewTransport(s string) (*Transport, error) {
 		}
 	}
 
-	if t.Mode == TransportModeUdp && len(t.Ports) != 2 {
+	if t.Mode == TransportModeUdp && len(t.ClientPorts) != 2 {
 		return nil, errors.New("invalid transport ports")
 	}
 
@@ -178,23 +202,27 @@ func NewTransport(s string) (*Transport, error) {
 		return nil, errors.New("invalid rtp profile")
 	}
 
+	if t.SSRC == 0 {
+		return nil, errors.New("invalid ssrc")
+	}
+
 	return t, nil
 }
 
 func (t *Transport) RtpPort() int {
-	if len(t.Ports) == 0 {
+	if len(t.ClientPorts) == 0 {
 		return -1
 	}
 
-	return t.Ports[0]
+	return t.ClientPorts[0]
 }
 
 func (t *Transport) RtcpPort() int {
-	if len(t.Ports) == 0 {
+	if len(t.ClientPorts) == 0 {
 		return -1
 	}
 
-	return t.Ports[1]
+	return t.ClientPorts[1]
 }
 
 func (t *Transport) RtpInterleaved() int {
