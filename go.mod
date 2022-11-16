@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/panjf2000/gnet v1.6.6
-//	github.com/panjf2000/gnet/v2 v2.1.2
+	//	github.com/panjf2000/gnet/v2 v2.1.2
 	github.com/pion/ice/v2 v2.2.6
 	github.com/pion/webrtc/v3 v3.1.44
 	github.com/sirupsen/logrus v1.8.1
@@ -13,12 +13,17 @@ require (
 )
 
 require (
+	github.com/google/uuid v1.3.0
+	github.com/panjf2000/gnet/v2 v2.1.2
+)
+
+require (
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
+	github.com/panjf2000/ants/v2 v2.4.8 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.0-beta.8 // indirect
 	github.com/pion/datachannel v1.5.2 // indirect

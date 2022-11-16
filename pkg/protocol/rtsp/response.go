@@ -104,6 +104,23 @@ const (
 	StatusOptionNotSupported     Status = 551
 )
 
+type IResponse interface {
+	String() string
+	CSeq() int
+	Session() string
+	Transport() (*Transport, error)
+	ContentLength() int
+	ContentType() string
+	Expires() string
+	LastModified() string
+	Server() string
+	Content() []byte
+	SetContent(content string)
+	Line(key string) string
+	SetLine(key, value string)
+	Option() *OptionsResponse
+}
+
 type Response struct {
 	version   string
 	status    Status
@@ -113,7 +130,9 @@ type Response struct {
 }
 
 func (resp *Response) String() string {
-	return resp.version + " " + strconv.Itoa(int(resp.status)) + " " + resp.status.String() + "\r\n" + resp.lines.String() + "\r\n" + string(resp.content)
+	return resp.version + " " + strconv.Itoa(int(resp.status)) + " " + resp.status.String() + "\r\n" +
+		resp.lines.String() + "\r\n" +
+		string(resp.content)
 }
 
 func (status Status) String() string {
@@ -289,6 +308,14 @@ func (resp *Response) CSeq() int {
 	return cseq
 }
 
+func (resp *Response) Line(key string) string {
+	return resp.lines[key]
+}
+
+func (resp *Response) SetLine(key, value string) {
+	resp.lines[key] = value
+}
+
 func (resp *Response) Session() string {
 	return resp.lines["session"]
 }
@@ -297,17 +324,6 @@ func (resp *Response) Transport() (*Transport, error) {
 	transportLine := resp.lines["transport"]
 
 	return UnmarshalTransport(transportLine)
-}
-
-func (resp *OptionsResponse) ContentLength() int {
-	contentLengthLine := resp.lines["content-length"]
-
-	contentLength, err := strconv.Atoi(contentLengthLine)
-	if err != nil {
-		return -1
-	}
-
-	return contentLength
 }
 
 func (resp *Response) ContentType() string {
@@ -335,25 +351,39 @@ func (resp *Response) SetContent(content string) {
 	resp.content = []byte(content)
 }
 
+func (resp *Response) ContentLength() int {
+	contentLengthLine := resp.Line("content-length")
+
+	contentLength, err := strconv.Atoi(contentLengthLine)
+	if err != nil {
+		return -1
+	}
+
+	return contentLength
+}
+
 func (resp *Response) Option() *OptionsResponse {
 	return &OptionsResponse{
-		Response: resp,
+		IResponse: resp,
 	}
 }
 
 // OptionsResponse is a RTSP OPTIONS request
 type OptionsResponse struct {
-	*Response
+	IResponse
 }
 
 func (resp *OptionsResponse) Public() []string {
-	publicLine := resp.lines["public"]
+	publicLine := resp.Line("public")
 
 	return strings.Split(publicLine, ",")
 }
 
 func (resp *OptionsResponse) SetOptions(options []string) {
-	resp.lines["Public"] = strings.Join(options, ",")
+	resp.SetLine("Public", strings.Join(options, ", "))
 }
 
 // DescribeResponse is a RTSP DESCRIBE request
+type DescribeResponse struct {
+	IResponse
+}

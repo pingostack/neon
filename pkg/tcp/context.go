@@ -18,10 +18,8 @@ type Context struct {
 	Conn gnet.Conn
 }
 
-func NewContext(c interface{}) IContext {
-	return &Context{
-		Conn: c.(gnet.Conn),
-	}
+func NewContext() IContext {
+	return &Context{}
 }
 
 func (ctx *Context) Write(data []byte) error {

@@ -57,7 +57,7 @@ func NewTcpTransport(profile RtpProfile, interleaveds []int) *Transport {
 	}
 }
 
-func (r RtpProfile) ToString() string {
+func (r RtpProfile) String() string {
 	switch r {
 	case RtpProfileAVP:
 		return RtpProfileAVPStr
@@ -101,7 +101,7 @@ func (t *Transport) String() (string, error) {
 		return "", errors.New("invalid rtp profile")
 	}
 
-	s += t.profile.ToString()
+	s += t.profile.String()
 
 	if t.mode == TransportModeTcp {
 		s += "TCP;"

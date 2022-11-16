@@ -39,8 +39,8 @@ func NewRtspServer(settings RtspServerSettings) (*RtspServer, error) {
 	return server, nil
 }
 
-func (server *RtspServer) NewOrGet(c interface{}) tcp.IContext {
-	session := NewSession(c)
+func (server *RtspServer) NewOrGet() tcp.IContext {
+	session := NewSession()
 
 	return session
 }
@@ -52,7 +52,7 @@ func (server *RtspServer) OnTcpClose(ctx tcp.IContext) error {
 }
 
 func (server *RtspServer) Encode(c gnet.Conn, buf []byte) ([]byte, error) {
-	return nil, nil
+	return buf, nil
 }
 
 // Decode decodes frames from TCP stream via specific implementation.

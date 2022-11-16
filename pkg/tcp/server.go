@@ -6,7 +6,7 @@ import (
 )
 
 type IManager interface {
-	NewOrGet(c interface{}) IContext
+	NewOrGet() IContext
 	OnTcpClose(ctx IContext) error
 }
 
@@ -39,7 +39,7 @@ func (s *Server) OnShutdown(gs gnet.Server) {
 // OnOpen fires when a new connection has been opened.
 // The parameter out is the return value which is going to be sent back to the peer.
 func (s *Server) OnOpened(c gnet.Conn) (out []byte, action gnet.Action) {
-	ctx := s.manager.NewOrGet(c)
+	ctx := s.manager.NewOrGet()
 	c.SetContext(ctx)
 	ctx.SetConn(c)
 

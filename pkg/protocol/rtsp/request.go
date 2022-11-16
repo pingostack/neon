@@ -12,7 +12,7 @@ type MethodEnum int
 
 const (
 	UnknownMethod MethodEnum = iota - 1
-	OptionMethod
+	OptionsMethod
 	DescribeMethod
 	AnnounceMethod
 	SetupMethod
@@ -107,7 +107,7 @@ func (lines HeaderLines) String() string {
 func (req *Request) Method() MethodEnum {
 	switch req.method {
 	case "options":
-		return OptionMethod
+		return OptionsMethod
 	case "describe":
 		return DescribeMethod
 	case "announce":
