@@ -32,6 +32,19 @@ type Request struct {
 	content []byte
 }
 
+type IRequest interface {
+	Url() string
+	MethodStr() string
+	GetLine(key string) string
+	SetLine(key, value string)
+	String() string
+	CSeq() int
+	Session() string
+	ContentType() string
+	GetContent() string
+	SetContent(content string)
+}
+
 func UnmarshalRequest(buf []byte) (*Request, int, error) {
 	headerEndOffset := bytes.Index(buf, []byte("\r\n\r\n"))
 	if headerEndOffset == -1 {
@@ -131,6 +144,10 @@ func (req *Request) Method() MethodEnum {
 	}
 }
 
+func (req *Request) Url() string {
+	return req.url
+}
+
 func (req *Request) MethodStr() string {
 	return req.method
 }
@@ -165,109 +182,118 @@ func (req *Request) Session() string {
 	return req.lines["session"]
 }
 
+func (req *Request) ContentType() string {
+	return req.lines["content-type"]
+}
+
+func (req *Request) SetContent(content string) {
+	req.content = []byte(content)
+	req.lines["Content-Length"] = strconv.Itoa(len(content))
+}
+
+func (req *Request) GetContent() string {
+	return string(req.content)
+}
+
 func (req *Request) Option() *OptionsRequest {
 	return &OptionsRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) Describe() *DescribeRequest {
 	return &DescribeRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) Announce() *AnnounceRequest {
 	return &AnnounceRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) Setup() *SetupRequest {
 	return &SetupRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) Play() *PlayRequest {
 	return &PlayRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) Pause() *PauseRequest {
 	return &PauseRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) Teardown() *TeardownRequest {
 	return &TeardownRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) GetParameter() *GetParameterRequest {
 	return &GetParameterRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) SetParameter() *SetParameterRequest {
 	return &SetParameterRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 func (req *Request) Record() *RecordRequest {
 	return &RecordRequest{
-		Request: req,
+		IRequest: req,
 	}
 }
 
 // OptionsRequest is a RTSP OPTIONS request
 type OptionsRequest struct {
-	*Request
+	IRequest
 }
 
 func (req *OptionsRequest) Require() string {
-	return req.lines["require"]
+	return req.GetLine("require")
 }
 
 func (req *OptionsRequest) ProxyRequire() string {
-	return req.lines["proxy-require"]
+	return req.GetLine("proxy-require")
 }
 
 // DescribeRequest is a RTSP DESCRIBE request
 type DescribeRequest struct {
-	*Request
+	IRequest
 }
 
 func (req *DescribeRequest) Accept() string {
-	return req.lines["accept"]
+	return req.GetLine("accept")
 }
 
 func (req *DescribeRequest) SetSdp(sdp string) {
-	req.lines["content-type"] = "application/sdp"
-	req.content = []byte(sdp)
+	req.SetLine("content-type", "application/sdp")
+	req.SetContent(sdp)
 }
 
 // AnnounceRequest is a RTSP ANNOUNCE request
 type AnnounceRequest struct {
-	*Request
-}
-
-func (req *AnnounceRequest) ContentType() string {
-	return req.lines["content-type"]
+	IRequest
 }
 
 // SetupRequest is a RTSP SETUP request
 type SetupRequest struct {
-	*Request
+	IRequest
 }
 
 func (req *SetupRequest) TransportString() string {
-	return req.lines["transport"]
+	return req.GetLine("transport")
 }
 
 func (req *SetupRequest) Transport() (*Transport, error) {
@@ -275,56 +301,61 @@ func (req *SetupRequest) Transport() (*Transport, error) {
 }
 
 func (req *SetupRequest) SetTransport(transport *Transport) {
-	req.lines["transport"], _ = transport.String()
+	transportStr, err := transport.String()
+	if err != nil {
+		return
+	}
+	req.SetLine("transport", transportStr)
 }
 
 // PlayRequest is a RTSP PLAY request
 type PlayRequest struct {
-	*Request
+	IRequest
 }
 
 func (req *PlayRequest) Range() string {
-	return req.lines["range"]
+	return req.GetLine("range")
 }
 
 // PauseRequest is a RTSP PAUSE request
 type PauseRequest struct {
-	*Request
+	IRequest
 }
 
 func (req *PauseRequest) Range() string {
-	return req.lines["range"]
+	return req.GetLine("range")
 }
 
 // TeardownRequest is a RTSP TEARDOWN request
 type TeardownRequest struct {
-	*Request
+	IRequest
 }
 
 // GetParameterRequest is a RTSP GET_PARAMETER request
 type GetParameterRequest struct {
-	*Request
+	IRequest
 }
 
 func (req *GetParameterRequest) Parameters() []string {
-	if len(req.content) == 0 {
+	content := req.GetContent()
+	if len(content) == 0 {
 		return nil
 	}
 
-	return strings.Split(string(req.content), "\r\n")
+	return strings.Split(content, "\r\n")
 }
 
 // SetParameterRequest is a RTSP SET_PARAMETER request
 type SetParameterRequest struct {
-	*Request
+	IRequest
 }
 
 func (req *SetParameterRequest) Parameters() map[string]string {
-	if len(req.content) == 0 {
+	if len(req.GetContent()) == 0 {
 		return nil
 	}
 
-	lines := strings.Split(string(req.content), "\r\n")
+	lines := strings.Split(string(req.GetContent()), "\r\n")
 	params := make(map[string]string)
 	for _, line := range lines {
 		parts := strings.Split(line, ":")
@@ -340,5 +371,5 @@ func (req *SetParameterRequest) Parameters() map[string]string {
 
 // RecordRequest is a RTSP RECORD request
 type RecordRequest struct {
-	*Request
+	IRequest
 }

@@ -25,19 +25,19 @@ type Serv struct {
 	cseqCounter int
 	pool        *goPool.Pool
 	write       WriteHandler
-}
-
-type IServImpl interface {
+	descChan    chan string
+	url         string
 }
 
 func NewServ(logger *logrus.Entry, write WriteHandler) *Serv {
 
 	return &Serv{
+		logger:      logger.WithField("Role", "serv"),
 		state:       EmptyState,
 		cseqCounter: 0,
 		pool:        goPool.Default(),
 		write:       write,
-		logger:      logger.WithField("Role", "serv"),
+		descChan:    make(chan string, 1),
 	}
 }
 
@@ -81,46 +81,60 @@ func (serv *Serv) Feed(buf []byte) (int, error) {
 	return endOffset, nil
 }
 
+func (serv *Serv) SetDescribe(desc string) {
+	serv.descChan <- desc
+}
+
 func (serv *Serv) handleRequest(req *Request) error {
+	defer func() {
+		if err := recover(); err != nil {
+			serv.logger.Errorf("handleRequest panic: %v", err)
+		}
+	}()
+
 	serv.pool.Submit(func() {
 		serv.logger.Debugf("rtsp request: %s", req.String())
 
+		if serv.url == "" {
+			serv.url = req.Url()
+		}
+
 		var err error
-		var resp IResponse
 		switch req.Method() {
 		case OptionsMethod:
-			resp, err = serv.OptionsProcess(req)
+			err = serv.OptionsProcess(req)
 		case DescribeMethod:
-
+			err = serv.DescribeProcess(req)
 		case AnnounceMethod:
+			err = serv.AnnounceProcess(req)
 		case SetupMethod:
+			err = serv.SetupProcess(req)
 		case PlayMethod:
+			err = serv.PlayProcess(req)
 		case PauseMethod:
+			err = serv.PauseProcess(req)
 		case TeardownMethod:
+			err = serv.TeardownProcess(req)
 		case GetParameterMethod:
+			err = serv.GetParameterProcess(req)
 		case SetParameterMethod:
+			err = serv.SetParameterProcess(req)
 		default:
+			err = serv.WriteResponseStatus(req.CSeq(), StatusMethodNotAllowed)
 		}
 
 		if err != nil {
 			serv.logger.Errorf("rtsp request error: %s", err.Error())
 			return
 		}
-
-		if resp != nil {
-			err = serv.write([]byte(resp.String()))
-			if err != nil {
-				serv.logger.Errorf("write rtsp response failed: %s", err.Error())
-			}
-		} else {
-			serv.logger.Errorf("resp is nil")
-		}
 	})
 	return nil
 }
 
-func (serv *Serv) OptionsProcess(req *Request) (IResponse, error) {
-	return serv.NewOptionsResponse(req.CSeq(), []string{
+func (serv *Serv) OptionsProcess(req *Request) error {
+	serv.logger.Debugf("rtsp options")
+	resp := serv.NewResponse(req.CSeq(), StatusOK).Option()
+	resp.SetOptions([]string{
 		"OPTIONS",
 		"ANNOUNCE",
 		"DESCRIBE",
@@ -130,7 +144,63 @@ func (serv *Serv) OptionsProcess(req *Request) (IResponse, error) {
 		"PAUSE",
 		"GET_PARAMETER",
 		"SET_PARAMETER",
-	}), nil
+	})
+
+	return serv.WriteResponse(resp)
+}
+
+func (serv *Serv) DescribeProcess(req *Request) error {
+	serv.logger.Debugf("rtsp describe")
+	select {
+	case desc := <-serv.descChan:
+		serv.logger.Debugf("rtsp describe get desc: %s", desc)
+		resp := serv.NewResponse(req.CSeq(), StatusOK).Describe()
+		resp.SetContentType("application/sdp")
+		resp.SetContentBase(serv.url)
+		resp.SetContent(desc)
+		return serv.WriteResponse(resp)
+
+	case <-time.After(10 * time.Second):
+		serv.logger.Debugf("rtsp describe timeout")
+		return serv.WriteResponseStatus(req.CSeq(), StatusNotFound)
+	}
+}
+
+func (serv *Serv) AnnounceProcess(req *Request) error {
+	serv.logger.Debugf("rtsp Announce")
+
+	contentType := req.Announce().ContentType()
+	if contentType != "application/sdp" {
+		serv.logger.Errorf("rtsp Announce content type error: %s", contentType)
+		return serv.WriteResponseStatus(req.CSeq(), StatusUnsupportedMediaType)
+	}
+
+	return serv.WriteResponse(serv.NewResponse(req.CSeq(), StatusOK))
+}
+
+func (serv *Serv) SetupProcess(req *Request) error {
+	serv.logger.Debugf("rtsp setup")
+	return nil
+}
+
+func (serv *Serv) PlayProcess(req *Request) error {
+	return nil
+}
+
+func (serv *Serv) PauseProcess(req *Request) error {
+	return nil
+}
+
+func (serv *Serv) TeardownProcess(req *Request) error {
+	return nil
+}
+
+func (serv *Serv) GetParameterProcess(req *Request) error {
+	return nil
+}
+
+func (serv *Serv) SetParameterProcess(req *Request) error {
+	return nil
 }
 
 func (serv *Serv) NewResponse(cseq int, status Status) *Response {
@@ -149,8 +219,10 @@ func (serv *Serv) NewResponse(cseq int, status Status) *Response {
 	return resp
 }
 
-func (serv *Serv) NewOptionsResponse(cseq int, options []string) *OptionsResponse {
-	resp := serv.NewResponse(cseq, StatusOK).Option()
-	resp.SetOptions(options)
-	return resp
+func (serv *Serv) WriteResponse(resp IResponse) error {
+	return serv.write([]byte(resp.String()))
+}
+
+func (serv *Serv) WriteResponseStatus(cseq int, status Status) error {
+	return serv.write([]byte(serv.NewResponse(cseq, status).String()))
 }

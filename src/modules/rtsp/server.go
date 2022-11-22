@@ -1,8 +1,8 @@
 package rtsp
 
 import (
+	"github.com/let-light/network/tcp"
 	"github.com/panjf2000/gnet"
-	"github.com/pingopenstack/neon/pkg/tcp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -39,13 +39,13 @@ func NewRtspServer(settings RtspServerSettings) (*RtspServer, error) {
 	return server, nil
 }
 
-func (server *RtspServer) NewOrGet() tcp.IContext {
-	session := NewSession()
+func (server *RtspServer) OnAccept(c tcp.IConnection) tcp.IConnection {
+	session := NewSession(c)
 
 	return session
 }
 
-func (server *RtspServer) OnTcpClose(ctx tcp.IContext) error {
+func (server *RtspServer) OnTcpClose(ctx tcp.IConnection) error {
 	session := ctx.(*Session)
 
 	return session.OnTcpClose()
