@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/let-light/neon/src/core"
 	goPool "github.com/panjf2000/gnet/pkg/pool/goroutine"
-	"github.com/pingopenstack/neon/src/core"
 	"github.com/sirupsen/logrus"
 )
 

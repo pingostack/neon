@@ -1,7 +1,7 @@
 package rtsp
 
 import (
-	"github.com/pingopenstack/neon/pkg/module"
+	"github.com/let-light/neon/pkg/module"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

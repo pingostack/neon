@@ -1,4 +1,4 @@
-module github.com/pingopenstack/neon
+module github.com/let-light/neon
 
 go 1.18
 

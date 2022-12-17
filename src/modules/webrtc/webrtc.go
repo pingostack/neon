@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/pingopenstack/neon/pkg/module"
+	"github.com/let-light/neon/pkg/module"
 	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"

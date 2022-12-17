@@ -2,9 +2,9 @@ package rtsp
 
 import (
 	"github.com/google/uuid"
+	"github.com/let-light/neon/pkg/protocol/rtsp"
+	"github.com/let-light/neon/src/core"
 	"github.com/let-light/network/tcp"
-	"github.com/pingopenstack/neon/pkg/protocol/rtsp"
-	"github.com/pingopenstack/neon/src/core"
 	"github.com/sirupsen/logrus"
 )
 

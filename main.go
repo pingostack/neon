@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pingopenstack/neon/pkg/module"
-	_ "github.com/pingopenstack/neon/src/core"
+	"github.com/let-light/neon/pkg/module"
+	_ "github.com/let-light/neon/src/core"
 
-	_ "github.com/pingopenstack/neon/src/modules/rtsp"
-	_ "github.com/pingopenstack/neon/src/modules/webrtc"
+	_ "github.com/let-light/neon/src/modules/rtsp"
+	_ "github.com/let-light/neon/src/modules/webrtc"
 )
 
 func main() {
