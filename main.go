@@ -13,7 +13,6 @@ import (
 
 	_ "github.com/pingopenstack/neon/src/modules/rtsp"
 	_ "github.com/pingopenstack/neon/src/modules/webrtc"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -25,8 +24,7 @@ func main() {
 
 	module.Launch()
 
-	for true {
+	for {
 		time.Sleep(time.Second * 1)
 	}
-	logrus.Info("neon exit")
 }

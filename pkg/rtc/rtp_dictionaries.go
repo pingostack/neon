@@ -30,9 +30,11 @@ type RtpParameters struct {
 	HasRTCP bool `json:"hasRtcp,omitempty"`
 }
 
+type Parameters map[string]string
+
 type RtpCodecParameters struct {
 	// MIME media codec MIME type/subtype.
-	MIME string `json:"mimeType,omitempty"`
+	MimeType RtpCodecMimeType `json:"mimeType,omitempty"`
 
 	// PayloadType RTP payload type.
 	PayloadType uint8 `json:"payloadType,omitempty"`
@@ -44,7 +46,7 @@ type RtpCodecParameters struct {
 	Channels uint8 `json:"channels,omitempty"`
 
 	// Parameters codec-specific parameters.
-	Parameters map[string]string `json:"parameters,omitempty"`
+	Parameters Parameters `json:"parameters,omitempty"`
 
 	// RTCPFeedback codec-specific RTCP feedback mechanisms.
 	RTCPFeedback []RtcpFeedback `json:"rtcpFeedback,omitempty"`
