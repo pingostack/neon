@@ -1,8 +1,10 @@
-package core
+package forwarding
+
+import "github.com/let-light/neon/pkg/av"
 
 type IAVCache interface {
-	ReadRawFrame(frame *AVFrame) error
-	ReadFrame(frame *AVFrame) error
+	ReadRawFrame(frame *av.AVFrame) error
+	ReadFrame(frame *av.AVFrame) error
 	SeekToLastKeyFrame() error
 	SeekToEarliestKeyFrame() error
 }
@@ -14,11 +16,11 @@ func NewAVCache() *AVCache {
 	return &AVCache{}
 }
 
-func (cache *AVCache) ReadRawFrame(frame *AVFrame) error {
+func (cache *AVCache) ReadRawFrame(frame *av.AVFrame) error {
 	return nil
 }
 
-func (cache *AVCache) ReadFrame(frame *AVFrame) error {
+func (cache *AVCache) ReadFrame(frame *av.AVFrame) error {
 	return nil
 }
 

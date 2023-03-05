@@ -1,4 +1,4 @@
-package core
+package forwarding
 
 import "github.com/sirupsen/logrus"
 
