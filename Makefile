@@ -17,3 +17,12 @@ package: build_neon
 
 clean:
 	rm -rf build
+
+help:
+	@echo "make - same as make all"
+	@echo "make all - init, build neon, package"
+	@echo "make init - init go mod"
+	@echo "make build_neon - build neon"
+	@echo "make package - package neon"
+	@echo "make clean - clean build"
+	@echo "make help - show help"
