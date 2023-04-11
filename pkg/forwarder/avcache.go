@@ -1,4 +1,4 @@
-package forwarding
+package forwarder
 
 import "github.com/let-light/neon/pkg/av"
 

@@ -96,39 +96,45 @@ func initDefaultModules() {
 	manager.modules = append(modules, manager.modules...)
 }
 
-func Register(module IModule) error {
-	if module == nil {
-		return fmt.Errorf("module is nil")
+func Register(modules ...IModule) error {
+	if len(modules) == 0 {
+		return nil
 	}
 
-	t := reflect.TypeOf(module)
-	if t.Kind() != reflect.Ptr {
-		return fmt.Errorf("module must be pointer")
-	}
-
-	if t.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("module must be struct")
-	}
-
-	for _, mi := range manager.modules {
-		if mi.module == module {
-			return fmt.Errorf("module[%p] is existed", module)
+	for _, module := range modules {
+		t := reflect.TypeOf(module)
+		if t.Kind() != reflect.Ptr {
+			return fmt.Errorf("module must be pointer")
 		}
-	}
 
-	mi := &ModuleInfo{
-		module: module,
-		cmds:   make([]*cobra.Command, 0),
-		name:   t.Elem().Name(),
-	}
+		if t.Elem().Kind() != reflect.Struct {
+			return fmt.Errorf("module must be struct")
+		}
 
-	manager.modules = append(manager.modules, mi)
+		for _, mi := range manager.modules {
+			if mi.module == module {
+				return fmt.Errorf("module[%p] is existed", module)
+			}
+		}
+
+		mi := &ModuleInfo{
+			module: module,
+			cmds:   make([]*cobra.Command, 0),
+			name:   t.Elem().Name(),
+		}
+
+		manager.modules = append(manager.modules, mi)
+	}
 
 	return nil
 }
 
 func RegisterDefaultModule(modules ...IModule) {
 	manager.defaultModules = append(manager.defaultModules, modules...)
+}
+
+func RegisterDefaultModules() {
+	RegisterDefaultModule(ConfigModule(), LoggerModule())
 }
 
 func Launch(ctx context.Context) error {

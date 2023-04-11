@@ -7,30 +7,31 @@ LoggerModule: {
   reportcaller: false,
 }
 
-WebRTCModule: {
-  ballast: 4,
-  withstats: true,
-  ice: {
+Sfu: {
+  listenAddr: ":7001",
+  Cert: "",
+  Key: "",
+}
+
+WebRTC: {
     singleport: 1936,
     portrange: [1937, 1938],
-    icsserver: [],
-    icelite: true,
-    nat1to1: [],
-    sdpsemantics: "unified-plan",
+    candidates: {
+      icelite: true,
+      nat1to1: ['192.168.3.111'],
+    },
+    sdpsemantics: "unified-plan-with-fallback",
     mdns: true,
-    disconnectedtimeout: 10,
-    failedtimeout: 10,
-    keepaliveinterval: 10,
-  },
-  audiolevelobserver: {
-    audiolevelinterval: 0,
-    audiolevelthreshold: 0,
-    audiolevelfilter: 0,
-  },
-  track: {
-    maxbandwidth: 10000000,
-    maxpackettrack: 1000,
-  }
+    timeouts: {
+      disconnected: 5,
+      failed: 20,
+      keepalive: 2,
+    },
+    iceserver: {
+      urls: ["stun:stun.l.google.com:19302"],
+      username: "",
+      credential: "",
+    }
 }
 
 RtspModule: {

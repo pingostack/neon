@@ -6,7 +6,9 @@ import (
 
 	"github.com/gogf/gf/os/gfile"
 	"github.com/kardianos/service"
+	"github.com/let-light/neon/apps/sfu"
 	"github.com/let-light/neon/pkg/gomodule"
+	"github.com/let-light/neon/pkg/gortc"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +30,7 @@ func init() {
 	}
 }
 
-func ServiceModule() *syservice {
+func SyServiceModule() *syservice {
 	return serviceInstance
 }
 
@@ -168,12 +170,13 @@ func (s *syservice) RootCommand(cmd *cobra.Command, args []string) {
 }
 
 func Launch() {
-	gomodule.RegisterDefaultModule(gomodule.ConfigModule())
-	gomodule.RegisterDefaultModule(gomodule.LoggerModule())
-	gomodule.RegisterDefaultModule(ServiceModule())
-	gomodule.Register(ServerModule())
+	gomodule.RegisterDefaultModules()
+	gomodule.Register(
+		SyServiceModule(),
+		gortc.WebRTCModule(),
+		sfu.SfuModule())
 
-	gomodule.Launch(ServiceModule().ctx)
+	gomodule.Launch(SyServiceModule().ctx)
 }
 
 func Wait() {

@@ -4,10 +4,10 @@ import (
 	"context"
 	"io"
 	"os"
+	"path"
 	"strings"
 	"sync"
 
-	"github.com/let-light/neon/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -76,7 +76,7 @@ func (l *loggerModule) RootCommand(cmd *cobra.Command, args []string) {
 	}
 	logrus.SetLevel(level)
 
-	fd, err := utils.CreateDirFile(l.settings.File)
+	fd, err := createLogFile(l.settings.File)
 	if err != nil {
 		panic(err)
 	}
@@ -89,4 +89,20 @@ func (l *loggerModule) RootCommand(cmd *cobra.Command, args []string) {
 	}
 
 	logrus.SetOutput(output)
+}
+
+func createLogFile(file string) (*os.File, error) {
+	dir := path.Dir(file)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+			return nil, err
+		}
+	}
+
+	fd, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	return fd, nil
 }
