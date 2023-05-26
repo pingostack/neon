@@ -51,7 +51,7 @@ func (ss *SignalServer) Run() error {
 
 		peerId := guid.S()
 		p := NewJSONSignal(
-			forwarder.NewPeer(guid.S(),
+			forwarder.NewPeer(ss.ctx, guid.S(),
 				logrus.WithFields(logrus.Fields{
 					"peer":   peerId,
 					"entry":  "sfu",
@@ -60,7 +60,7 @@ func (ss *SignalServer) Run() error {
 				}),
 				gortc.WebRTCModule(),
 				gortc.WebRTCModule(),
-				forwarder.ForwardingSys,
+				forwarder.Forwarder,
 			))
 		defer p.Close()
 

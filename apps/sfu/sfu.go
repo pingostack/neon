@@ -2,8 +2,8 @@ package sfu
 
 import (
 	"context"
-	"sync"
 
+	"github.com/let-light/gomodule"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -23,11 +23,12 @@ type SfuSettings struct {
 }
 
 type sfu struct {
-	wg       *sync.WaitGroup
-	ctx      context.Context
-	settings SfuSettings
-	ss       *SignalServer
-	l        *logrus.Entry
+	gomodule.DefaultModule
+	ctx         context.Context
+	preSettings SfuSettings
+	settings    *SfuSettings
+	ss          *SignalServer
+	l           *logrus.Entry
 }
 
 func init() {
@@ -44,10 +45,9 @@ func SfuModule() *sfu {
 	return sfuModule
 }
 
-func (sfu *sfu) InitModule(ctx context.Context, wg *sync.WaitGroup) (interface{}, error) {
-	sfu.wg = wg
+func (sfu *sfu) InitModule(ctx context.Context, _ *gomodule.Manager) (interface{}, error) {
 	sfu.ctx = ctx
-	return &sfu.settings, nil
+	return &sfu.preSettings, nil
 }
 
 func (sfu *sfu) InitCommand() ([]*cobra.Command, error) {
@@ -56,24 +56,24 @@ func (sfu *sfu) InitCommand() ([]*cobra.Command, error) {
 }
 
 func (sfu *sfu) ConfigChanged() {
+	if sfu.settings == nil {
+		sfu.settings = &SfuSettings{}
+	}
+
+	if *sfu.settings != sfu.preSettings {
+		*sfu.settings = sfu.preSettings
+	}
 }
 
-func (sfu *sfu) RootCommand(cmd *cobra.Command, args []string) {
-	sfu.wg.Add(1)
-
+func (sfu *sfu) ModuleRun() {
 	sfu.ss = NewSignalServer(sfu.ctx, SignalServerSettings{
 		listenAddr: sfu.settings.ListenAddr,
 		cert:       sfu.settings.Cert,
 		key:        sfu.settings.Key,
 	})
-	sfu.ss.OnClose(func() {
-		sfu.wg.Done()
-	})
 
-	go func() {
-		if e := sfu.ss.Run(); e != nil {
-			logger().Errorf("signal server run failed: %v", e)
-			panic(e)
-		}
-	}()
+	if e := sfu.ss.Run(); e != nil {
+		logger().Errorf("signal server run failed: %v", e)
+		panic(e)
+	}
 }

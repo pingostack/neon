@@ -1,24 +1,32 @@
-LoggerModule: {
+logger: {
   file: logs/neon.log,
   level: debug,
   formatter: text, # text or json
   format: '2006-01-02 15:04:05',
   console: true,
+  color: true,
   reportcaller: false,
+  maxAge: 72,
+  rotationTime: 24,
+  rotationCount: 5,
+  rotationSize: 100,
+  filePattern: '%Y%m%d',
 }
 
-Sfu: {
+sfu: {
   listenAddr: ":7001",
   Cert: "",
   Key: "",
 }
 
-WebRTC: {
-    singleport: 1936,
+webrtc: {
+    trackingPackets: 500,
+    maxBitRate: 10000000,
+    singleport: 5000,
     portrange: [1937, 1938],
     candidates: {
       icelite: true,
-      nat1to1: ['192.168.3.111'],
+      nat1to1: [],
     },
     sdpsemantics: "unified-plan-with-fallback",
     mdns: true,
@@ -34,7 +42,7 @@ WebRTC: {
     }
 }
 
-RtspModule: {
+rtsp: {
   server: {
     addr: "tcp://:3654",
     tcp: {

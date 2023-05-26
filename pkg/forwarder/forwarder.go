@@ -2,21 +2,19 @@ package forwarder
 
 import (
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
-type forwardingSys struct {
+type forwarder struct {
 	groups map[string]IGroup
 	sync.RWMutex
 }
 
-var ForwardingSys = &forwardingSys{
+var Forwarder = &forwarder{
 	groups: make(map[string]IGroup),
 }
 
-func (f *forwardingSys) newGroup(id string) IGroup {
-	group := NewGroup(id, logrus.WithField("group", id)).(*Group)
+func (f *forwarder) newGroup(id string) IGroup {
+	group := NewGroup(id).(*Group)
 
 	group.OnClose(func() {
 		f.removeGroup(id)
@@ -29,13 +27,13 @@ func (f *forwardingSys) newGroup(id string) IGroup {
 	return group
 }
 
-func (f *forwardingSys) getGroup(id string) IGroup {
+func (f *forwarder) getGroup(id string) IGroup {
 	f.RLock()
 	defer f.RUnlock()
 	return f.groups[id]
 }
 
-func (f *forwardingSys) GetOrNewGroup(sid string) IGroup {
+func (f *forwarder) GetOrNewGroup(sid string) IGroup {
 	group := f.getGroup(sid)
 	if group == nil {
 		group = f.newGroup(sid)
@@ -43,7 +41,7 @@ func (f *forwardingSys) GetOrNewGroup(sid string) IGroup {
 	return group
 }
 
-func (f *forwardingSys) removeGroup(gid string) {
+func (f *forwarder) removeGroup(gid string) {
 	f.Lock()
 	defer f.Unlock()
 

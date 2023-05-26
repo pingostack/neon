@@ -1,31 +1,47 @@
 package gortc
 
 import (
+	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 
+	"github.com/let-light/neon/pkg/buffer"
+	"github.com/let-light/neon/pkg/forwarder"
+	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
 )
 
 type Publisher struct {
-	OnIceCandidate             func(*webrtc.ICECandidateInit, int)
-	OnICEConnectionStateChange func(webrtc.ICEConnectionState)
+	OnIceCandidate                    func(*webrtc.ICECandidateInit, int)
+	onICEConnectionStateChangeHandler atomic.Value
 
-	id         string
+	peerId     string
 	logger     *logrus.Entry
 	pc         *webrtc.PeerConnection
 	cfg        *WebRTCTransportConfig
 	candidates []webrtc.ICECandidateInit
+	closeOnce  sync.Once
+	factory    *buffer.Factory
+	ctx        context.Context
+	cancel     context.CancelFunc
+	rtcpCh     chan []rtcp.Packet
+	router     forwarder.IRouter
+	group      forwarder.IGroup
+	upTracks   map[string]*UpTrack
 }
 
-func NewPublisher(id string, cfg WebRTCTransportConfig, logger *logrus.Entry) (*Publisher, error) {
+func NewPublisher(ctx context.Context, id string, group forwarder.IGroup, cfg WebRTCTransportConfig, logger *logrus.Entry) (*Publisher, error) {
 	me, err := getPublisherMediaEngine()
 	if err != nil {
 		logger.WithError(err).Error("NewPublisher error, getPublisherMediaEngine")
 		return nil, err
 	}
 
+	factory := buffer.NewBufferFactory(cfg.TrackingPackets, logrus.WithField("package", "buffer"))
 	logger.Infof("NewPublisher, cfg %+v", cfg.Configuration)
+	cfg.Setting.BufferFactory = factory.GetOrNew
 
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(me), webrtc.WithSettingEngine(cfg.Setting))
 	pc, err := api.NewPeerConnection(cfg.Configuration)
@@ -35,11 +51,16 @@ func NewPublisher(id string, cfg WebRTCTransportConfig, logger *logrus.Entry) (*
 	}
 
 	publisher := &Publisher{
-		id:     id,
-		logger: logger,
-		pc:     pc,
-		cfg:    &cfg,
+		peerId:  id,
+		logger:  logger.WithField("role", "publisher"),
+		pc:      pc,
+		cfg:     &cfg,
+		factory: factory,
+		group:   group,
+		router:  forwarder.NewRouter(id, group),
 	}
+
+	publisher.ctx, publisher.cancel = context.WithCancel(ctx)
 
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		logger.Info("on publisher ice candidate called for peer")
@@ -48,16 +69,50 @@ func NewPublisher(id string, cfg WebRTCTransportConfig, logger *logrus.Entry) (*
 		}
 
 		if publisher.OnIceCandidate != nil {
-			json := c.ToJSON()
-			publisher.OnIceCandidate(&json, RolePublisher)
+			iceInit := c.ToJSON()
+			publisher.OnIceCandidate(&iceInit, RolePublisher)
 		}
 	})
 
-	pc.OnICEConnectionStateChange(func(s webrtc.ICEConnectionState) {
-		logger.Info("on publisher ice connection state change called for peer ", "state ", s)
+	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
+		publisher.Logger().WithField("connectionState", connectionState).Info("ice connection status")
+		switch connectionState {
+		case webrtc.ICEConnectionStateFailed:
+			fallthrough
+		case webrtc.ICEConnectionStateClosed:
+			publisher.Logger().Info("webrtc ice closed")
+			publisher.Close()
+		}
+
+		if handler, ok := publisher.onICEConnectionStateChangeHandler.Load().(func(webrtc.ICEConnectionState)); ok && handler != nil {
+			handler(connectionState)
+		}
+	})
+
+	pc.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+		publisher.Logger().WithFields(logrus.Fields{
+			"publisher_id": publisher.peerId,
+			"track_id":     track.ID(),
+			"mediaSSRC":    track.SSRC(),
+			"rid":          track.RID(),
+			"stream_id":    track.StreamID(),
+		}).Info("Peer got remote track id")
+
+		buff := publisher.factory.GetBuffer(uint32(track.SSRC()))
+		if buff == nil {
+			publisher.Logger().WithField("track_id", track.ID()).Error("buffer is nil")
+			return
+		}
+
+		upTrack := NewUpTrack(buff, track, receiver, uint64(publisher.cfg.MaxBitRate), publisher.logger)
+		publisher.router.AddUpTrack(upTrack)
 	})
 
 	return publisher, nil
+}
+
+func (p *Publisher) GetUpTrack(trackId string) *UpTrack {
+	return p.upTracks[trackId]
 }
 
 func (p *Publisher) AddICECandidate(candidate webrtc.ICECandidateInit) error {
@@ -107,10 +162,36 @@ func (p *Publisher) Logger() *logrus.Entry {
 	return p.logger
 }
 
+func (p *Publisher) SetRTCPWriter(fn func(packet []rtcp.Packet) error) {
+	go func() {
+		for {
+			select {
+			case pkts := <-p.rtcpCh:
+				if err := fn(pkts); err != nil {
+					p.Logger().WithError(err).Error("rtcp write err")
+				}
+			case <-p.ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
 // IPublisher impl begin
 
-func (p *Publisher) Close() error {
-	return nil
+func (p *Publisher) GetRouter() forwarder.IRouter {
+	return p.router
+}
+
+func (p *Publisher) Close() {
+	p.closeOnce.Do(func() {
+		p.cancel()
+		p.Logger().Info("publisher close")
+
+		if err := p.pc.Close(); err != nil {
+			p.Logger().WithError(err).Error("webrtc transport close err")
+		}
+	})
 }
 
 // IPublisher impl end

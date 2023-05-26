@@ -1,6 +1,7 @@
 package forwarder
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -9,19 +10,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// type ITrack interface {
-// 	MarshalTracks() string
-// 	SetRemoteDescription(desc string) (string, error)
-// }
-
-// type ITransport interface {
-// 	MarshalTransport() string
-// 	SetRemoteTransport(data string) error
-// }
-
 type IPublisher interface {
 	//	OnConnect(f func(data string, publisher IPublisher))
-	Close() error
+	Close()
+	GetRouter() IRouter
 	// Marshal() string
 	// OnRemoteTrack(f func())
 	// ITrack
@@ -30,7 +22,9 @@ type IPublisher interface {
 
 type ISubscriber interface {
 	//	OnConnect(f func(data string, subscriber ISubscriber))
-	Close() error
+	Close()
+	NegotiateTracks()
+	OnNegotiateTracks(f func())
 	// Marshal() string
 	// OnLocalTrack(f func())
 	// ITrack
@@ -42,7 +36,7 @@ type IPeer interface {
 	Group() IGroup
 	Publisher() IPublisher
 	Subscriber() ISubscriber
-	Close() error
+	Close()
 }
 
 type IGroupProvider interface {
@@ -50,11 +44,11 @@ type IGroupProvider interface {
 }
 
 type IPublisherProvider interface {
-	NewPublisher(id string, logger *logrus.Entry) (IPublisher, error)
+	NewPublisher(ctx context.Context, id string, group IGroup, logger *logrus.Entry) (IPublisher, error)
 }
 
 type ISubscriberProvider interface {
-	NewSubscriber(id string, logger *logrus.Entry) (ISubscriber, error)
+	NewSubscriber(ctx context.Context, id string, group IGroup, logger *logrus.Entry) (ISubscriber, error)
 }
 
 type JoinConfig struct {
@@ -77,9 +71,11 @@ type Peer struct {
 	OnConnect          func()
 	OnRemoteTrack      func()
 	OnLocalTrack       func()
+	ctx                context.Context
+	cancel             context.CancelFunc
 }
 
-func NewPeer(id string, logger *logrus.Entry,
+func NewPeer(ctx context.Context, id string, logger *logrus.Entry,
 	publisherProvider IPublisherProvider,
 	subscriberProvider ISubscriberProvider,
 	groupProvider IGroupProvider) *Peer {
@@ -92,11 +88,11 @@ func NewPeer(id string, logger *logrus.Entry,
 		publisherProvider:  publisherProvider,
 		subscriberProvider: subscriberProvider,
 		groupProvider:      groupProvider,
-		logger: logger.WithFields(logrus.Fields{
-			"peer":   id,
-			"object": "peer",
-		}),
+		logger:             logger.WithFields(logrus.Fields{"package": "forwarder", "role": "peer", "peer_id": id}),
+		id:                 id,
 	}
+
+	p.ctx, p.cancel = context.WithCancel(ctx)
 
 	p.Logger().Info("new peer created")
 
@@ -120,7 +116,7 @@ func (p *Peer) Join(groupId string, config JoinConfig) error {
 	}
 
 	if p.publisherProvider != nil && !config.NoPublish {
-		publisher, err := p.publisherProvider.NewPublisher(p.id, p.Logger().WithField("target", "publisher"))
+		publisher, err := p.publisherProvider.NewPublisher(p.ctx, p.id, p.group, p.Logger().WithField("target", "publisher"))
 
 		if err != nil {
 			p.Logger().WithError(err).Error("failed to create publisher")
@@ -131,7 +127,7 @@ func (p *Peer) Join(groupId string, config JoinConfig) error {
 	}
 
 	if p.subscriberProvider != nil && !config.NoSubscribe {
-		subscriber, err := p.subscriberProvider.NewSubscriber(p.id, p.Logger().WithField("target", "subscriber"))
+		subscriber, err := p.subscriberProvider.NewSubscriber(p.ctx, p.id, p.group, p.Logger().WithField("target", "subscriber"))
 
 		if err != nil {
 			p.Logger().WithError(err).Error("failed to create subscriber")
@@ -166,12 +162,12 @@ func (p *Peer) Subscriber() ISubscriber {
 	return p.subscriber
 }
 
-func (p *Peer) Close() error {
+func (p *Peer) Close() {
 	p.Lock()
 	defer p.Unlock()
 
 	if !p.closed.Set(true) {
-		return nil
+		return
 	}
 
 	if p.group != nil {
@@ -182,9 +178,6 @@ func (p *Peer) Close() error {
 		p.publisher.Close()
 	}
 	if p.subscriber != nil {
-		if err := p.subscriber.Close(); err != nil {
-			return err
-		}
+		p.subscriber.Close()
 	}
-	return nil
 }

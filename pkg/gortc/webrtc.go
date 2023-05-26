@@ -3,9 +3,9 @@ package gortc
 import (
 	"context"
 	"net"
-	"sync"
 	"time"
 
+	"github.com/let-light/gomodule"
 	"github.com/let-light/neon/pkg/forwarder"
 	"github.com/pion/ice/v2"
 	"github.com/pion/webrtc/v3"
@@ -19,10 +19,10 @@ const (
 )
 
 type WebRTC struct {
-	wg       *sync.WaitGroup
-	ctx      context.Context
-	settings WebRTCConfig
-	w        WebRTCTransportConfig
+	gomodule.DefaultModule
+	preSettings WebRTCConfig
+	settings    *WebRTCConfig
+	w           WebRTCTransportConfig
 }
 
 var webrtcModule *WebRTC
@@ -35,18 +35,16 @@ func WebRTCModule() *WebRTC {
 	return webrtcModule
 }
 
-func (rtc *WebRTC) NewPublisher(id string, logger *logrus.Entry) (forwarder.IPublisher, error) {
-	return NewPublisher(id, rtc.w, logger)
+func (rtc *WebRTC) NewPublisher(ctx context.Context, id string, group forwarder.IGroup, logger *logrus.Entry) (forwarder.IPublisher, error) {
+	return NewPublisher(ctx, id, group, rtc.w, logger)
 }
 
-func (rtc *WebRTC) NewSubscriber(id string, logger *logrus.Entry) (forwarder.ISubscriber, error) {
-	return NewSubscriber(id, rtc.w, logger)
+func (rtc *WebRTC) NewSubscriber(ctx context.Context, id string, group forwarder.IGroup, logger *logrus.Entry) (forwarder.ISubscriber, error) {
+	return NewSubscriber(ctx, id, group, rtc.w, logger)
 }
 
-func (rtc *WebRTC) InitModule(ctx context.Context, wg *sync.WaitGroup) (interface{}, error) {
-	rtc.wg = wg
-	rtc.ctx = ctx
-	return &rtc.settings, nil
+func (rtc *WebRTC) InitModule(_ context.Context, _ *gomodule.Manager) (interface{}, error) {
+	return &rtc.preSettings, nil
 }
 
 func (rtc *WebRTC) InitCommand() ([]*cobra.Command, error) {
@@ -55,13 +53,21 @@ func (rtc *WebRTC) InitCommand() ([]*cobra.Command, error) {
 }
 
 func (rtc *WebRTC) ConfigChanged() {
+	if rtc.settings == nil {
+		rtc.settings = &WebRTCConfig{}
+	}
+
+	if !rtc.settings.Compare(&rtc.preSettings) {
+		*rtc.settings = rtc.preSettings
+	}
 }
 
-func (rtc *WebRTC) RootCommand(cmd *cobra.Command, args []string) {
+func (rtc *WebRTC) ModuleRun() {
 	se := webrtc.SettingEngine{}
 	se.DisableMediaEngineCopy(true)
 
 	wc := rtc.settings
+	//	rtc.settings.BufferFactory = buffer.NewBufferFactory(rtc.settings.TrackingPackets, logrus.WithField("package", "buffer"))
 
 	if wc.ICESinglePort != 0 {
 		udpListener, err := net.ListenUDP("udp", &net.UDPAddr{
@@ -90,6 +96,7 @@ func (rtc *WebRTC) RootCommand(cmd *cobra.Command, args []string) {
 	var iceServers []webrtc.ICEServer
 	if wc.Candidates.IceLite {
 		se.SetLite(wc.Candidates.IceLite)
+
 	} else {
 		for _, iceServer := range wc.ICEServers {
 			s := webrtc.ICEServer{
@@ -101,7 +108,7 @@ func (rtc *WebRTC) RootCommand(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	//se.BufferFactory = wc.BufferFactory.GetOrNew
+	//	se.BufferFactory = wc.BufferFactory.GetOrNew
 
 	sdpSemantics := webrtc.SDPSemanticsUnifiedPlan
 	switch wc.SDPSemantics {
@@ -127,8 +134,9 @@ func (rtc *WebRTC) RootCommand(cmd *cobra.Command, args []string) {
 			ICEServers:   iceServers,
 			SDPSemantics: sdpSemantics,
 		},
-		Setting: se,
-		//BufferFactory: wc.BufferFactory,
+		Setting:         se,
+		TrackingPackets: wc.TrackingPackets,
+		MaxBitRate:      wc.MaxBitRate,
 	}
 
 	if len(wc.Candidates.NAT1To1IPs) > 0 {

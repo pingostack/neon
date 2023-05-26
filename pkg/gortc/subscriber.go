@@ -1,33 +1,36 @@
 package gortc
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/bep/debounce"
+	"github.com/let-light/neon/pkg/forwarder"
 	"github.com/let-light/neon/pkg/utils"
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
 )
 
 type Subscriber struct {
+	sync.Mutex
 	OnOffer                    func(offer *webrtc.SessionDescription)
 	OnIceCandidate             func(*webrtc.ICECandidateInit, int)
 	OnICEConnectionStateChange func(webrtc.ICEConnectionState)
-
-	id                  string
-	logger              *logrus.Entry
-	pc                  *webrtc.PeerConnection
-	candidates          []webrtc.ICECandidateInit
-	closeOnce           sync.Once
-	negotiate           func()
-	remoteAnswerPending bool
-	negotiationPending  bool
-	closed              utils.AtomicBool
-	sync.Mutex
+	id                         string
+	logger                     *logrus.Entry
+	pc                         *webrtc.PeerConnection
+	candidates                 []webrtc.ICECandidateInit
+	closeOnce                  sync.Once
+	negotiate                  func()
+	remoteAnswerPending        bool
+	negotiationPending         bool
+	closed                     utils.AtomicBool
+	ctx                        context.Context
+	cancel                     context.CancelFunc
 }
 
-func NewSubscriber(id string, c WebRTCTransportConfig, logger *logrus.Entry) (*Subscriber, error) {
+func NewSubscriber(ctx context.Context, id string, group forwarder.IGroup, c WebRTCTransportConfig, logger *logrus.Entry) (*Subscriber, error) {
 	me, err := getSubscriberMediaEngine()
 	if err != nil {
 		logger.WithError(err).Error(err, "NewPeer error, getSubscriberMediaEngine")
@@ -44,11 +47,13 @@ func NewSubscriber(id string, c WebRTCTransportConfig, logger *logrus.Entry) (*S
 	s := &Subscriber{
 		id:     id,
 		pc:     pc,
-		logger: logger,
+		logger: logger.WithField("role", "subscriber"),
 		// tracks:          make(map[string][]*DownTrack),
 		// channels:        make(map[string]*webrtc.DataChannel),
 		// noAutoSubscribe: false,
 	}
+
+	s.ctx, s.cancel = context.WithCancel(ctx)
 
 	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 		logger.Info("ice connection status", "state", connectionState)
@@ -58,9 +63,7 @@ func NewSubscriber(id string, c WebRTCTransportConfig, logger *logrus.Entry) (*S
 		case webrtc.ICEConnectionStateClosed:
 			s.closeOnce.Do(func() {
 				logger.Info("webrtc ice closed")
-				if err := s.Close(); err != nil {
-					s.Logger().WithError(err).Error("webrtc transport close err")
-				}
+				s.Close()
 			})
 		}
 	})
@@ -76,7 +79,7 @@ func NewSubscriber(id string, c WebRTCTransportConfig, logger *logrus.Entry) (*S
 		}
 	})
 
-	s.OnNegotiationNeeded(func() {
+	s.OnNegotiateTracks(func() {
 		s.Lock()
 		defer s.Unlock()
 
@@ -123,7 +126,7 @@ func (s *Subscriber) CreateOffer() (webrtc.SessionDescription, error) {
 	return offer, nil
 }
 
-func (s *Subscriber) OnNegotiationNeeded(f func()) {
+func (s *Subscriber) OnNegotiateTracks(f func()) {
 	debounced := debounce.New(250 * time.Millisecond)
 	s.negotiate = func() {
 		debounced(f)
@@ -170,6 +173,9 @@ func (s *Subscriber) Logger() *logrus.Entry {
 	return s.logger
 }
 
-func (s *Subscriber) Close() error {
-	return nil
+func (s *Subscriber) Close() {
+}
+
+func (s *Subscriber) NegotiateTracks() {
+	s.negotiate()
 }
